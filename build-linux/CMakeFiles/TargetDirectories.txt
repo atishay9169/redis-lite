@@ -1,0 +1,5 @@
+/code/build-linux/CMakeFiles/redis-lite.dir
+/code/build-linux/CMakeFiles/test_resp.dir
+/code/build-linux/CMakeFiles/test.dir
+/code/build-linux/CMakeFiles/edit_cache.dir
+/code/build-linux/CMakeFiles/rebuild_cache.dir

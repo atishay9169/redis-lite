@@ -1,0 +1,19 @@
+Start testing: Jul 05 20:03 UTC
+----------------------------------------------------------
+1/1 Testing: resp_parser
+1/1 Test: resp_parser
+Command: "/code/build-linux/test_resp"
+Directory: /code/build-linux
+"resp_parser" start time: Jul 05 20:03 UTC
+Output:
+----------------------------------------------------------
+all parser tests passed
+<end of output>
+Test time =   0.01 sec
+----------------------------------------------------------
+Test Passed.
+"resp_parser" end time: Jul 05 20:03 UTC
+"resp_parser" time elapsed: 00:00:00
+----------------------------------------------------------
+
+End testing: Jul 05 20:03 UTC
