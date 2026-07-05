@@ -1,0 +1,7 @@
+services:
+  redis-lite:
+    build: .
+    ports:
+      - "6380:6380"
+    environment:
+      PORT: 6380
