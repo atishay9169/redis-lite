@@ -1,1 +1,0 @@
-/usr/bin/c++ "CMakeFiles/redis-lite.dir/src/main.cpp.o" "CMakeFiles/redis-lite.dir/src/EventLoop.cpp.o" "CMakeFiles/redis-lite.dir/src/RespParser.cpp.o" "CMakeFiles/redis-lite.dir/src/Commands.cpp.o" -o redis-lite 
