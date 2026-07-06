@@ -1,6 +1,8 @@
 #include "Commands.h"
 
 #include <cctype>
+#include <charconv>
+#include <chrono>
 
 namespace {
 
@@ -16,6 +18,13 @@ void reply_arity_error(Buffer& out, std::string_view cmd) {
     msg += cmd;
     msg += "' command";
     reply_error(out, msg);
+}
+
+// Strict positive-integer parse (TTLs: no sign, no trailing junk).
+bool parse_positive_long(std::string_view s, long long& out) {
+    if (s.empty()) return false;
+    auto [end, ec] = std::from_chars(s.data(), s.data() + s.size(), out);
+    return ec == std::errc() && end == s.data() + s.size() && out > 0;
 }
 
 }  // namespace
@@ -61,11 +70,25 @@ void execute_command(const std::vector<std::string>& args, Store& store,
         else reply_bulk(out, args[1]);
 
     } else if (cmd == "SET") {
-        // TODO(phase 5): SET key value EX seconds / PX millis.
-        if (args.size() != 3) reply_arity_error(out, "set");
-        else {
+        if (args.size() == 3) {
             store.set(args[1], args[2]);
             reply_simple(out, "OK");
+        } else if (args.size() == 5) {
+            std::string opt = upper(args[3]);
+            long long n = 0;
+            if (!parse_positive_long(args[4], n)) {
+                reply_error(out, "value is not an integer or out of range");
+            } else if (opt == "EX") {
+                store.set(args[1], args[2], std::chrono::seconds(n));
+                reply_simple(out, "OK");
+            } else if (opt == "PX") {
+                store.set(args[1], args[2], std::chrono::milliseconds(n));
+                reply_simple(out, "OK");
+            } else {
+                reply_error(out, "syntax error");
+            }
+        } else {
+            reply_arity_error(out, "set");
         }
 
     } else if (cmd == "GET") {
@@ -81,6 +104,23 @@ void execute_command(const std::vector<std::string>& args, Store& store,
                 if (store.del(args[i])) ++n;
             reply_int(out, n);
         }
+
+    } else if (cmd == "EXPIRE") {
+        if (args.size() != 3) {
+            reply_arity_error(out, "expire");
+        } else {
+            long long n = 0;
+            if (!parse_positive_long(args[2], n)) {
+                reply_error(out, "value is not an integer or out of range");
+            } else {
+                bool did = store.expire(args[1], std::chrono::seconds(n));
+                reply_int(out, did ? 1 : 0);
+            }
+        }
+
+    } else if (cmd == "TTL") {
+        if (args.size() != 2) reply_arity_error(out, "ttl");
+        else reply_int(out, store.ttl_seconds(args[1]));
 
     } else if (cmd == "COMMAND") {
         // redis-cli probes this on startup; an empty array keeps it happy.

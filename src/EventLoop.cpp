@@ -66,14 +66,20 @@ void EventLoop::run() {
     epoll_event events[kMaxEvents];
 
     for (;;) {
-        // TODO(phase 5): replace -1 with next_expiry_ms() from the store's
-        // TTL heap, then reap due keys on timeout wakeups. That single
-        // argument is the entire "timers" mechanism.
-        int n = ::epoll_wait(epfd_, events, kMaxEvents, -1);
+        // Wake for the next fd event OR the next key's expiry, whichever
+        // is sooner. next_expiry_ms() rounds up (ae_epoll.c-style) so a
+        // key due in, say, 300us doesn't collapse to a 0ms timeout and
+        // spin the loop.
+        int timeout = static_cast<int>(store_.next_expiry_ms());
+        int n = ::epoll_wait(epfd_, events, kMaxEvents, timeout);
         if (n < 0) {
             if (errno == EINTR) continue;  // signal: benign, retry
             die("epoll_wait");
         }
+
+        // Reap due keys on EVERY wakeup, not just bare timeouts -- a
+        // client request can arrive in the same instant a key expires.
+        store_.expire_due();
 
         for (int i = 0; i < n; ++i) {
             if (events[i].data.ptr == nullptr) {
