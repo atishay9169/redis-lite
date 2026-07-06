@@ -4,6 +4,7 @@
 
 #include <arpa/inet.h>
 #include <netinet/in.h>
+#include <netinet/tcp.h>
 #include <sys/epoll.h>
 #include <sys/socket.h>
 #include <unistd.h>
@@ -117,6 +118,13 @@ void EventLoop::accept_new() {
             std::perror("accept4");  // transient (EMFILE etc.): keep serving
             return;
         }
+
+        // Disable Nagle's algorithm: without this, TCP delays small writes
+        // hoping to coalesce them, which works against a request/response
+        // protocol where each write is already a complete, small reply.
+        // Real Redis does the same on every client socket.
+        int yes = 1;
+        ::setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &yes, sizeof yes);
 
         auto conn = std::make_unique<Connection>(fd);
 
