@@ -116,7 +116,12 @@ def test_errors_and_close():
     ok("unknown command error", s.recv(200) ==
        b"-ERR unknown command 'BLAH'\r\n")
 
-    s.sendall(b"?bogus\r\n")
+    # NOTE: a bare non-'*' line (e.g. "?bogus\r\n") is now a legitimate
+    # INLINE command (see RespParser's inline-command support), so it is
+    # no longer a protocol-error case. Use something that starts a
+    # multibulk header but is malformed INSIDE it -- that's still invalid
+    # under both formats.
+    s.sendall(b"*1\r\n#4\r\nPING\r\n")  # '#' where '$' must be
     reply = s.recv(200)
     ok("protocol error -> -ERR reply", reply.startswith(b"-ERR"))
     rest = s.recv(100)

@@ -59,10 +59,14 @@ int main() {
 
     // 5. Malformed input.
     {
-        RespParser p; Buffer b; Args a;               // wrong array prefix
+        // A line not starting with '*' is now a valid INLINE command (see
+        // test group 8), NOT a protocol error -- matches real Redis, which
+        // also accepts "?3" as an (unknown) inline command name.
+        RespParser p; Buffer b; Args a;
         std::string s = "?3\r\n";
         b.append(s.data(), s.size());
-        assert(p.parse(b, a) == ParseStatus::Error);
+        assert(p.parse(b, a) == ParseStatus::Complete);
+        assert((a == Args{"?3"}));
     }
     {
         RespParser p; Buffer b; Args a;               // wrong bulk prefix
@@ -102,6 +106,49 @@ int main() {
         RespParser p; Buffer b; Args a;
         std::string s = "*0\r\n*1\r\n$4\r\nPING\r\n";
         b.append(s.data(), s.size());
+        assert(p.parse(b, a) == ParseStatus::Complete);
+        assert((a == Args{"PING"}));
+    }
+
+    // 8. Inline commands (non-multibulk, plain text + \r\n) -- the format
+    //    redis-benchmark's startup probe and telnet clients use.
+    {
+        RespParser p; Buffer b; Args a;
+        std::string s = "PING\r\n";
+        b.append(s.data(), s.size());
+        assert(p.parse(b, a) == ParseStatus::Complete);
+        assert((a == Args{"PING"}));
+    }
+    {
+        RespParser p; Buffer b; Args a;
+        std::string s = "SET foo bar\r\n";
+        b.append(s.data(), s.size());
+        assert(p.parse(b, a) == ParseStatus::Complete);
+        assert((a == Args{"SET", "foo", "bar"}));
+    }
+    {
+        // extra whitespace between tokens is tolerated
+        RespParser p; Buffer b; Args a;
+        std::string s = "GET   foo\r\n";
+        b.append(s.data(), s.size());
+        assert(p.parse(b, a) == ParseStatus::Complete);
+        assert((a == Args{"GET", "foo"}));
+    }
+    {
+        // blank inline line is ignored, next real command still parses
+        RespParser p; Buffer b; Args a;
+        std::string s = "\r\nPING\r\n";
+        b.append(s.data(), s.size());
+        assert(p.parse(b, a) == ParseStatus::Complete);
+        assert((a == Args{"PING"}));
+    }
+    {
+        // inline and multibulk commands can interleave on the same conn
+        RespParser p; Buffer b; Args a;
+        std::string s = "PING\r\n*1\r\n$4\r\nPING\r\n";
+        b.append(s.data(), s.size());
+        assert(p.parse(b, a) == ParseStatus::Complete);
+        assert((a == Args{"PING"}));
         assert(p.parse(b, a) == ParseStatus::Complete);
         assert((a == Args{"PING"}));
     }

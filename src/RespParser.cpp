@@ -1,5 +1,6 @@
 #include "RespParser.h"
 
+#include <cctype>
 #include <charconv>
 
 namespace {
@@ -22,6 +23,21 @@ bool RespParser::take_line(Buffer& in, std::string& line) {
     return true;
 }
 
+std::vector<std::string> RespParser::split_inline(const std::string& line) {
+    std::vector<std::string> out;
+    std::size_t i = 0;
+    while (i < line.size()) {
+        while (i < line.size() && std::isspace(static_cast<unsigned char>(line[i])))
+            ++i;
+        if (i >= line.size()) break;
+        std::size_t start = i;
+        while (i < line.size() && !std::isspace(static_cast<unsigned char>(line[i])))
+            ++i;
+        out.push_back(line.substr(start, i - start));
+    }
+    return out;
+}
+
 ParseStatus RespParser::parse(Buffer& in, std::vector<std::string>& args) {
     for (;;) {
         switch (state_) {
@@ -34,7 +50,16 @@ ParseStatus RespParser::parse(Buffer& in, std::vector<std::string>& args) {
                 if (in.size() > kMaxLine) return ParseStatus::Error;
                 return ParseStatus::NeedMore;
             }
-            if (line.empty() || line[0] != '*') return ParseStatus::Error;
+            if (line.empty()) break;  // blank line: ignore, same as real Redis
+            if (line[0] != '*') {
+                // INLINE command: plain whitespace-split text, not a
+                // multibulk array. Complete immediately -- no BulkHeader/
+                // BulkPayload states involved.
+                auto tokens = split_inline(line);
+                if (tokens.empty()) break;  // all-whitespace line: ignore
+                args = std::move(tokens);
+                return ParseStatus::Complete;
+            }
             long n = 0;
             if (!parse_long(std::string_view(line).substr(1), n))
                 return ParseStatus::Error;
